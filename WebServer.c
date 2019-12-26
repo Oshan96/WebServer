@@ -20,6 +20,7 @@ void writeHeader(int,char*);
 char* getRequestMethod(char*);
 char* getPath(char*);
 char* getFileType(char*);
+char* getMIMEType(char*);
 char* getContentType(char*);
 
 char server_message[256] = "Server reach successful";
@@ -125,7 +126,7 @@ void* handle_client(int client_socket) {
   } else {
     path++;
   }
-  
+
   /*read the file and send to client*/
   FILE *file = fopen(path, "r");
   if(file == NULL) {
@@ -153,6 +154,8 @@ void* handle_client(int client_socket) {
   printf("Content Type : %s\n", contentType);
 
   writeHeader(client_socket, contentType);
+
+  free(contentType);    //free allocated memory to the pointer
 
   while((bytes_read = fread(buffer, 1, BUFFER_SIZE, file)) > 0) {
     printf("Sending %zu bytes\n", bytes_read);
@@ -193,17 +196,62 @@ char* getPath(char* request) {
   return ptr;
 }
 
-char* getContentType(char* fileType) {
-
-  if(strcmp(fileType, "html") == 0) {
-    return "Content-Type: text/html\r\n\r\n";
+char* getMIMEType(char* fileType) {
+  if(strcmp(fileType, "html") == 0 || strcmp(fileType, "htm") == 0) {
+    return "text/html";
   } else if(strcmp(fileType, "png") == 0) {
-    return "Content-Type: image/png\r\n\r\n";
-  } else if (strcmp(fileType, "ico") == 0 ) {
-    return "Content-Type: image/x-icon\r\n\r\n";
+    return "image/png";
+  } else if(strcmp(fileType, "jpg") == 0 || strcmp(fileType, "pjp") == 0 || strcmp(fileType, "jpeg") == 0 || strcmp(fileType, "jfif") == 0 || strcmp(fileType, "pjpeg") == 0 ) {
+    return "image/jpeg";
+  } else if(strcmp(fileType, "ico") == 0 || strcmp(fileType, "cur") == 0) {
+    return "image/x-icon";
+  } else if(strcmp(fileType, "bmp") == 0) {
+    return "image/bmp";
+  } else if(strcmp(fileType, "gif") == 0) {
+    return "image/gif";
+  } else if(strcmp(fileType, "svg") == 0) {
+    return "image/svg+xml";
+  } else if(strcmp(fileType, "webp") == 0) {
+    return "image/webp";
+  } else if(strcmp(fileType, "apng") == 0) {
+    return "image/apng";
+  } else if(strcmp(fileType, "tif") == 0 || strcmp(fileType, "tiff") == 0) {
+    return "image/tiff";
+  } else if(strcmp(fileType, "mp2") == 0 || strcmp(fileType, "mp3") == 0 || strcmp(fileType, "mpga") == 0) {
+    return "audio/mpeg";
+  } else if(strcmp(fileType, "mpe") == 0 || strcmp(fileType, "mpeg") == 0 || strcmp(fileType, "mpg") == 0) {
+    return "video/mpeg";
+  } else if(strcmp(fileType, "mp4") == 0) {
+    return "video/mp4";
+  } else if(strcmp(fileType, "wav") == 0) {
+    return "audio/x-wav";
+  } else if(strcmp(fileType, "zip") == 0) {
+    return "application/zip";
+  } else if(strcmp(fileType, "doc") == 0) {
+    return "application/msword";
+  } else if(strcmp(fileType, "xls") == 0) {
+    return "application/vnd.ms-excel";
+  } else if(strcmp(fileType, "pdf") == 0) {
+    return "application/pdf";
+  } else if(strcmp(fileType, "csv") == 0) {
+    return "text/csv";
   }
 
-  return "";
+  return "text/plain";
+}
+
+char* getContentType(char* fileType) {
+  char * cont = "Content-Type: ";
+  char * mime = getMIMEType(fileType);
+  char * ret = "\r\n\r\n";
+
+  char * result = (char *) malloc(strlen(cont) + strlen(mime) + strlen(ret));
+
+  strcpy(result, cont);
+  strcat(result, mime);
+  strcat(result, ret);
+
+  return result;
 }
 
 char* getFileType(char* filePath) {
