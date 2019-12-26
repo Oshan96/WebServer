@@ -5,17 +5,18 @@
 #include <sys/socket.h>
 #include <sys/types.h>
 #include <limits.h>
-# include <unistd.h>
-
+#include <unistd.h>
 #include <pthread.h>
+#include "queue.h"
 
 #define SERVER_PORT 9002
-#define MAX_CLIENTS 5
-
+#define MAX_CLIENTS 50
 #define BUFFER_SIZE 1024
+#define POOL_SIZE 20
 
-void* handle_client(int);
 
+void* thread_work(void*);           //thread worker function to listen for new work when available
+void* handle_client(void*);         //handles incoming client requests
 void writeHeader(int,char*);
 char* getRequestMethod(char*);
 char* getPath(char*);
@@ -23,13 +24,22 @@ char* getFileType(char*);
 char* getMIMEType(char*);
 char* getContentType(char*);
 
-char server_message[256] = "Server reach successful";
+
+pthread_t thread_pool[POOL_SIZE];                             //thread pool
+pthread_mutex_t mutex_lock = PTHREAD_MUTEX_INITIALIZER;       //mutex lock to synchronize
+pthread_cond_t thread_condition = PTHREAD_COND_INITIALIZER;   //thread condition to wait() and signal() calls
 
 FILE * error_404;
 
 int main(int argc, char const *argv[]) {
 
   error_404 = fopen("error_404.html", "r");
+
+  /*creat the worker thread pool*/
+  int i;
+  for(i=0; i<POOL_SIZE; i++) {
+    pthread_create(&thread_pool[i], NULL, &thread_work, NULL);
+  }
 
   /*create server socket (internet, tcp)*/
   int server_socket, client_socket, addr_size;
@@ -84,17 +94,46 @@ int main(int argc, char const *argv[]) {
       printf("Client accepted...\n");
     }
 
-    handle_client(client_socket);
+    int * client = (int*) malloc(sizeof(int));
+    *client = client_socket;
+
+    /*synchronize enqueue call using mutex_lock*/
+    pthread_mutex_lock(&mutex_lock);
+    enqueue(client);                        //add new connection to the queue to be handled by a worker thread
+    pthread_cond_signal(&thread_condition); //signal any waiting worker threads
+    pthread_mutex_unlock(&mutex_lock);      //release synchronize lock
   }
 
-
+  /*shutdown server*/
   close(server_socket);
-
 
   return 0;
 }
 
-void* handle_client(int client_socket) {
+void* thread_work(void* arg) {
+  while(1) {
+    int * client_socket;
+
+    pthread_mutex_lock(&mutex_lock);                      //acquire lock on queue
+
+    if((client_socket = dequeue()) == NULL) {             //check whether the queue is empty with no work
+      pthread_cond_wait(&thread_condition, &mutex_lock);  //wait the thread if there is no work to do
+      client_socket = dequeue();                          //check again for new work when signled
+    }
+
+    pthread_mutex_unlock(&mutex_lock);                    //release lock
+
+    if(client_socket != NULL) {
+      handle_client(client_socket);                       //handle the client request
+    }
+
+  }
+}
+
+void* handle_client(void * client) {
+  int client_socket = *((int*)client);
+
+  free(client);
 
   char buffer[BUFFER_SIZE];
   size_t bytes_read;

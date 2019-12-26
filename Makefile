@@ -1,7 +1,8 @@
 all: compile run
 
 compile:
-	gcc WebServer.c -o WebServer
+	gcc queue.c -c
+	gcc queue.o WebServer.c -pthread -o WebServer
 
 run:
 	./WebServer
