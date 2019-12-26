@@ -5,6 +5,7 @@
 #include <sys/socket.h>
 #include <sys/types.h>
 #include <limits.h>
+# include <unistd.h>
 
 #include <pthread.h>
 
@@ -23,7 +24,11 @@ char* getContentType(char*);
 
 char server_message[256] = "Server reach successful";
 
+FILE * error_404;
+
 int main(int argc, char const *argv[]) {
+
+  error_404 = fopen("error_404.html", "r");
 
   /*create server socket (internet, tcp)*/
   int server_socket, client_socket, addr_size;
@@ -78,9 +83,6 @@ int main(int argc, char const *argv[]) {
       printf("Client accepted...\n");
     }
 
-    /*send data to client*/
-    // send(client_socket, server_message, sizeof(server_message), 0);
-
     handle_client(client_socket);
   }
 
@@ -118,22 +120,24 @@ void* handle_client(int client_socket) {
   fflush(stdout);
 
   path = getPath(buffer);
-  path++;
-
-  // if(realpath(buffer, path) == NULL) {
-  //   printf("ERROR (bad path) : %s\n", path);
-  //   close(client_socket);
-  //   return NULL;
-  // }
-
+  if(strcmp(path,"/") == 0) {
+    path = "index.html";
+  } else {
+    path++;
+  }
+  
   /*read the file and send to client*/
   FILE *file = fopen(path, "r");
   if(file == NULL) {
     printf("ERROR (File open) : %s\n", path);
-    write(client_socket, buffer, bytes_read);
+    writeHeader(client_socket, "HTTP/1.1 404 Not Found\r\n");
+    writeHeader(client_socket, getContentType("html"));
+
+    while((bytes_read = fread(buffer, 1, BUFFER_SIZE, error_404)) > 0) {
+      write(client_socket, buffer, bytes_read);
+    }
 
     close(client_socket);
-    fclose(file);
     return NULL;
   }
 
